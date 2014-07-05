@@ -1,0 +1,5 @@
+# Point apt to orchestra-provisioning-server's squid
+d-i     mirror/country string manual
+d-i     mirror/http/hostname string 192.168.0.212
+d-i     mirror/http/directory string /ubuntu
+d-i     mirror/http/proxy string http://@@server@@:3128/

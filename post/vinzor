@@ -1,0 +1,220 @@
+#!/bin/bash
+
+OPTION=$1
+FILE=$2
+
+function listsystem()
+{
+if [[ -e /var/www/post/macandconf ]] ; then
+  echo "hostname    NIC          MAC        IP-address       openstack   mode   nodetype"
+  cat /var/www/post/macandconf|awk '{print $1 "     " $2 "  " $3 "  " $4 "    " $5 "    " $6 "    " $7}'
+fi
+   touch /var/www/post/macandconf
+}
+function addsystem()
+{
+echo "The IP range you can use is "
+cat /etc/dnsmasq.conf |grep dhcp-range
+echo -n "Enter the system host name : "
+read hostname
+echo -n "Ebter the NIC of the deployment port : "
+read NIC
+echo -n "Enter the MAC of the NIC of the deployment port: "
+read MAC
+echo -n "Enter the IP-address of the system : "
+read IP
+echo -n "Deploy Vinzor infrastructure, [y/n] : "
+read openstack
+echo "We have profiles below, enter the profile name to choose one : "
+cobbler profile list
+echo -n "your choice: " 
+read choice
+cobbler system add --name=$hostname --profile=$choice --mac=$MAC --ip-address=$IP --hostname=$hostname --name-servers=192.168.0.1 --gateway=192.168.0.1 --static=1
+echo -n "$hostname " >>/var/www/post/macandconf
+echo -n "$NIC " >>/var/www/post/macandconf
+echo -n "$MAC " >>/var/www/post/macandconf
+echo -n "$IP " >>/var/www/post/macandconf
+echo -n "$openstack " >>/var/www/post/macandconf
+echo "$hostname $IP" >>/etc/hosts
+echo "dhcp-host=$MAC,$IP,24h" >>/etc/dnsmasq.conf
+if [[ $openstack != "y" ]] ; then
+exit 0
+fi
+echo "Process 1 Choosing cluser mode and chooing node type "
+echo "--------------------------------------------------------------------------------------"
+confirm="n"
+  mode="none"
+  while [ $mode != "1" -a $mode != "2" ] && [[ $mode != "3" ]]
+  do
+    echo "Choose cluser mode (1,Multihost;,2,Triplenode 3,Singlenode)"
+    echo -n "Enter 1 or 2 or 3 : "
+    read mode
+  done
+  if [[ $mode = "1" ]] ; then
+    mode="multihost"
+  fi
+  if [[ $mode = "2" ]] ; then
+    mode="triplenode"
+  fi
+  if [[ $mode = "3" ]] ; then
+    mode="singlenode"
+  fi
+  echo -n "$mode " >>/var/www/post/macandconf
+  echo "--------------------------------------------------------------------------------------"
+  nodetype="none"
+  if [[ $mode != "singlenode" ]] ; then   
+    while [[ $nodetype != "1" ]] && [[ $nodetype != "2" ]] && [[ $nodetype != "3" ]]
+    do
+      echo "Choose Node Type ,(1,ControlNode; 2,NetworkNode; 3,ComputeNode)"
+      echo -n "Enter "1" or "2" or "3": "
+      read nodetype
+    done
+    if [[ $nodetype = "1" ]] ; then
+      nodetype="control"
+    fi
+    if [[ $nodetype = "2" ]] ; then
+      nodetype="network"
+    fi
+    if [[ $nodetype = "3" ]] ; then
+      nodetype="compute"
+    fi
+
+  else
+    nodetype="control"
+  fi
+  echo -n "$nodetype " >>/var/www/post/macandconf
+CONTROLMANAGEMENTIP="none"
+COMPUTEEXTERNALIP="none"
+COMPUTEMANAGEMENTIP="none"
+COMPUTEDATAIP="none"
+COMPUTEEXTERNALIP="none"
+COMPUTEMANAGEMENTIP="none"
+COMPUTEDATAIP="none"
+DATA_DEV="none"
+
+  echo "--------------------------------------------------------------------------------------"
+  echo -n "Enter the device name for EXT            : "
+  read EXT_DEV
+  echo -n "$EXT_DEV " >>/var/www/post/macandconf
+  echo -n "Enter the device name for MANAGE        : "
+  read MANAGMENT_DEVICE
+  echo -n "$MANAGMENT_DEVICE " >>/var/www/post/macandconf
+  if [[ $nodetype != "control" ]] ; then
+  echo -n "Enter the device name for DATA           : "
+  read DATA_DEV
+  echo -n "$DATA_DEV " >>/var/www/post/macandconf
+  fi
+  echo "--------------------------------------------------------------------------------------"
+  echo -n "Enter the EXT ip for controler Node     : "
+  read CONTROLEXTERNALIP
+  echo -n "$CONTROLEXTERNALIP " >>/var/www/post/macandconf
+  temp=$(echo $CONTROLEXTERNALIP|cut -d "." -f 4)
+  MULTICAST="224.0.0.$temp"
+  if [[ $mode != "singlenode" ]] ; then
+  echo -n "Enter the MANAGE ip for controler Node  : "
+  read CONTROLMANAGEMENTIP
+  echo -n "$CONTROLMANAGEMENTIP " >>/var/www/post/macandconf
+  else
+  echo -n "Enter the MANAGE ip for controler Node : "
+  read CONTROLMANAGEMENTIP
+  echo -n "$CONTROLMANAGEMENTIP " >>/var/www/post/macandconf
+  if [[ $CONTROLMANAGEMENTIP = "" ]] ; then
+  CONTROLMANAGEMENTIP="172.16.$temp.$temp"
+  fi
+  fi
+  if [[ $nodetype = "compute" ]]  ; then
+    echo -n "Enter the EXT ip for compute Node     : "
+    read COMPUTEEXTERNALIP
+    echo -n "$COMPUTEEXTERNALIP " >>/var/www/post/macandconf
+    echo -n "Enter the MANAGE ip for compute Node  : "
+    read COMPUTEMANAGEMENTIP
+    echo -n "$COMPUTEMANAGEMENTIP " >>/var/www/post/macandconf
+    echo -n "Enter the DATA ip for compute Node    : "
+    read COMPUTEDATAIP
+    echo -n "$COMPUTEDATAIP " >>/var/www/post/macandconf
+  fi
+  if [[ $nodetype = "network" ]] ; then
+    echo -n "Enter the EXT ip for network Node     : "
+    read COMPUTEEXTERNALIP
+    echo -n "$COMPUTEEXTERNALIP " >>/var/www/post/macandconf
+     echo -n "Enter the MANAGE ip for network Node : "
+    read COMPUTEMANAGEMENTIP
+    echo -n "$COMPUTEMANAGEMENTIP " >>/var/www/post/macandconf
+    echo -n "Enter the DATA ip for network Node    : "
+    read COMPUTEDATAIP
+    echo -n "$COMPUTEDATAIP " >>/var/www/post/macandconf
+  fi
+  echo -n "Enter the gateway for EXT                : "
+  read GATEWAY
+  echo -n "$GATEWAY " >>/var/www/post/macandconf
+  echo -n "Enter the netmask for EXT                : "
+  read NETMASK
+  echo -n "$NETMASK " >>/var/www/post/macandconf
+  echo " " >>/var/www/post/macandconf
+  
+}
+
+
+#main
+  if [[ $OPTION = "system-list" ]] ; then
+     listsystem
+  elif [[ $OPTION = "system-add" ]] ; then
+     addsystem
+  elif [[ $OPTION = "system-clean" ]] ; then
+     echo -n "Enter the system name : "
+     read system
+     cobbler system remove --name $system
+     sed -i "/$system/"d /etc/hosts  
+     echo "1,host file clean !!"
+     ip=$(cat /var/www/post/macandconf|grep $system|awk '{print $4}')
+     sed -i "/$system/"d /var/www/post/macandconf  
+     echo "2, mac conf file clean !!"
+     if [[ $ip != "" ]] ; then
+     sed -i "/$ip/"d /etc/dnsmasq.conf
+     echo "3, dhcp conf clean !!"
+     fi
+  elif [[ $OPTION = "system-cleanall" ]] ; then
+     for i in $(cat /var/www/post/macandconf|awk '{print $1}');
+     do
+       rm -rf /var/www/post/macandconf
+       cobbler system remove --name $i
+       sed -i "/$i/"d /etc/hosts;
+     done
+     sed -i "/dhcp-host/"d  /etc/dnsmasq.conf
+  elif [[ $OPTION = "import" ]] ; then
+     if [[ $FILE = "" ]] ; then
+       echo "no file"
+       exit 1
+     fi
+     cat $FILE >>/var/www/post/macandconf
+     HOSTNAME=$(for i in $(cat $FILE|awk '{print $1}'); do echo $i $j ; done)
+     for i in $HOSTNAME; do
+       MAC=$(cat $FILE|grep $i|awk '{print $3}')
+       ADDRESS=$(cat $FILE|grep $i|awk '{print $4}')
+       echo "$i $ADDRESS" >>/etc/hosts
+       echo "dhcp-host=$MAC,$ADDRESS,24h" >> /etc/dnsmasq.conf
+       cobbler system add --name=$i --profile=Ubuntu-12.04.2-x86_64 --mac=$MAC --ip-address=$ADDRESS --hostname=$HOSTNAME --name-servers=192.168.0.1 --gateway=192.168.0.1 --static=1;
+     done
+     listsystem
+  elif [[ $OPTION = "export" ]] ; then
+     if [[ $FILE = "" ]] ; then
+       echo "no file"
+       exit 1
+     fi
+     cp /var/www/post/macandconf $FILE
+  elif [[ $OPTION = "system-sync" ]] ; then
+     echo "waiting for sync ..."
+     cobbler sync >/dev/null
+     echo "sync done"
+  elif [[ $OPTION = "help" ]] ; then
+    echo "[vinzor usage]"
+    echo " vinzor system-list" 
+    echo " vinzor system-add"
+    echo " vinzor system-clean"
+    echo " vinzor system-cleanall"
+    echo " vinzor system-sync"
+    echo " vinzor import \$FILENAME"
+    echo " vinzor export \$FILENAME"
+  else 
+     echo "ERROR OPTION"  
+  fi
